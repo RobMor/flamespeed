@@ -3,41 +3,45 @@ package com.flamespeed.video;
 import java.io.DataInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.LongBuffer;
 import java.nio.channels.FileChannel;
 
-import com.flamespeed.image.Image;
+import com.flamespeed.image.*;
 
 public class CineFile extends VideoFile {
-    private long[] offsets; // Offsets of each frame
+    private long[] frameOffsets; // Offsets of each frame
     private FileInputStream fileStream; // The ID of the opened file
 
+
     public CineFile(String fileName) throws VideoLoadException {
-        super(fileName);
+        this.fileName = fileName;
 
         // The code here is based on the partial specification provided at the
         // link below as well as on previous c/c++ implementations of this
         // https://wiki.multimedia.cx/index.php?title=Phantom_Cine
+        // This python implementation also proved useful
+        // https://github.com/adamdlight/pyCine/blob/master/pycine.py
         try {
             fileStream = new FileInputStream(fileName);
             FileChannel channel = fileStream.getChannel();
             
             // Read the .cine file header into a byte buffer
-            ByteBuffer cineFileHeader = ByteBuffer.allocate(44);
+            int amountToRead = 44;
+            ByteBuffer cineFileHeader = ByteBuffer.allocate(amountToRead);
             // The only way to read the cine file structs properly.
             // The data is stored with least significant bytes first.
             cineFileHeader.order(ByteOrder.LITTLE_ENDIAN);
             int amountRead = channel.read(cineFileHeader);
             
-            if (amountRead < 44) {
+            if (amountRead < amountToRead) {
                 throw new VideoLoadException("Failed to read file");
             }
 
-            System.out.println(bytesToHex(cineFileHeader.array()));
             // Check that this is in fact a CINE file
             if (cineFileHeader.getShort(0) != (('I' << 8) | 'C')) {
-            //if ('I' != header.getChar(0) && 'C' != header.getChar(1)) {
                 throw new VideoLoadException("Bad File Format");
             }
             // Check the version of this CINE file (version 1)
@@ -50,60 +54,70 @@ public class CineFile extends VideoFile {
             }
             
             // Read the locaion of the bitmap header
-            int offsetImageHeader = cineFileHeader.getInt(24);
+            int offsetBitmapHeader = cineFileHeader.getInt(24);
 
             // Read the bitmap header into a byte buffer
-            ByteBuffer bitmapInfoHeader = ByteBuffer.allocate(40);
+            // Struct has the format of a standard BitmapInfoHeader
+            amountToRead = 40;
+            ByteBuffer bitmapInfoHeader = ByteBuffer.allocate(amountToRead);
             bitmapInfoHeader.order(ByteOrder.LITTLE_ENDIAN);
-            amountRead = channel.read(bitmapInfoHeader, offsetImageHeader);
+            amountRead = channel.read(bitmapInfoHeader, offsetBitmapHeader);
 
-            if (amountRead < 40) {
+            if (amountRead < amountToRead) {
                 throw new VideoLoadException("Failed to read file");
             }
             
-            // TODO problem here.
             // Check that the images are 8-bit
-            System.out.println(bitmapInfoHeader.getShort(14));
             if (bitmapInfoHeader.getShort(14) != 8) {
                 throw new VideoLoadException("This file is not 8-bits per pixel");
             }
-            
-            // Read the location of the setup information
-            int offsetSetupInfo = cineFileHeader.getInt(26);
 
-            // Read the setup information into a byte buffer
-            ByteBuffer setupInfo = ByteBuffer.allocate(5692); // Biggest byte buffer yet...
-            setupInfo.order(ByteOrder.LITTLE_ENDIAN);
-            amountRead = channel.read(setupInfo, offsetSetupInfo);
+            num_frames = cineFileHeader.getInt(20);
+            frame_px_width = bitmapInfoHeader.getInt(4);
+            frame_px_height = bitmapInfoHeader.getInt(8);
+            frame_line_size = frame_px_width*3;
+            frame_size = frame_line_size * frame_px_height;
 
-            if (amountRead < 5692) {
+            // Read the location of the frame offsets
+            int offsetFrameOffsets = cineFileHeader.getInt();
+
+            // Read the positions of each frame from the file
+            amountToRead = num_frames*8;
+            ByteBuffer byteOffsets = ByteBuffer.allocate(amountToRead);
+            byteOffsets.order(ByteOrder.LITTLE_ENDIAN);
+            amountRead = channel.read(byteOffsets, offsetFrameOffsets);
+
+            if (amountRead < amountToRead) {
                 throw new VideoLoadException("Failed to read file");
             }
-            
-            // Check the setup mark
-            System.out.println(bytesToHex(new byte[] {setupInfo.get(140), setupInfo.get(141)}));
-            if (setupInfo.getShort(140) != ('S' | ('T' << 8))) {
-                // Errors here generally mean that the file is either corrupt or
-                // the position (140) is wrong. First try experimenting with
-                // other values... This is the most mysterious of the structs...
-                throw new VideoLoadException("This file has a bad setup mark");
-            }
 
-            num_frames = cineFileHeader.getInt(18);
-            frame_px_width = bitmapInfoHeader.getInt(2);
-            frame_px_height = bitmapInfoHeader.getInt(6);
-            frame_line_size = frame_px_width*3;
-            frame_size = bitmapInfoHeader.getInt(18)*3;
-            frame_rate = 0;
-
+            // Store the image offsets as an array
+            byteOffsets.rewind();
+            frameOffsets = byteOffsets.asLongBuffer().array();
         } catch (IOException e) {
-            System.out.println("Error");
+            throw new VideoLoadException("Failed to read file");
         }
     }
 
-    public Image get_frame(int i) {
-        return new Image();
+    
+    public Image get_frame(int i) throws FrameLoadException {
+        try {
+            FileChannel channel = fileStream.getChannel();
+            long offset = frameOffsets[i];
+
+            ByteBuffer imageBuffer = ByteBuffer.allocate(frame_size);
+            int amountRead = channel.read(imageBuffer, offset);
+
+            if (amountRead < frame_size) {
+                throw new FrameLoadException("Failed to load frame: "+i);
+            }
+
+            return new Image(imageBuffer.array(), frame_px_width, frame_px_height, ChannelType.RGB);
+        } catch(IOException e) {
+            throw new FrameLoadException("Failed to load frame: "+i);
+        }
     }
+
 
     private final static char[] hexArray = "0123456789ABCDEF".toCharArray();
     public static String bytesToHex(byte[] bytes) {

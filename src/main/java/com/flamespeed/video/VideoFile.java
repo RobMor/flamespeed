@@ -11,15 +11,13 @@ public abstract class VideoFile {
     protected int frame_px_height; // Height in pixels
     protected int frame_line_size; // TODO remove this
     protected int frame_size; // Size of the frame in bytes
-    protected int frame_rate; // Frame rate of the video
+    protected long frame_rate; // Frame rate of the video
+
+
 
     public static VideoFile loadVideo(String fileName) throws VideoLoadException {
         return new CineFile("testing.cine");
     }
 
-    public VideoFile(String fileName) {
-        this.fileName = fileName;   
-    }
-
-    public abstract Image get_frame(int i);
+    public abstract Image get_frame(int i) throws FrameLoadException;
 }
