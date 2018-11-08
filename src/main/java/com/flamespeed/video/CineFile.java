@@ -1,20 +1,17 @@
 package com.flamespeed.video;
 
-import java.io.DataInputStream;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.LongBuffer;
 import java.nio.channels.FileChannel;
 
-import com.flamespeed.image.*;
-
 public class CineFile extends VideoFile {
+    private int frameSize;
     private long[] frameOffsets; // Offsets of each frame
     private FileInputStream fileStream; // The ID of the opened file
-
 
     public CineFile(String fileName) throws VideoLoadException {
         this.fileName = fileName;
@@ -72,17 +69,16 @@ public class CineFile extends VideoFile {
                 throw new VideoLoadException("This file is not 8-bits per pixel");
             }
 
-            num_frames = cineFileHeader.getInt(20);
-            frame_px_width = bitmapInfoHeader.getInt(4);
-            frame_px_height = bitmapInfoHeader.getInt(8);
-            frame_line_size = frame_px_width*3;
-            frame_size = frame_line_size * frame_px_height;
+            numFrames = cineFileHeader.getInt(20);
+            width = bitmapInfoHeader.getInt(4);
+            height = bitmapInfoHeader.getInt(8);
+            frameSize = width * height;
 
             // Read the location of the frame offsets
-            int offsetFrameOffsets = cineFileHeader.getInt();
+            int offsetFrameOffsets = cineFileHeader.getInt(32);
 
             // Read the positions of each frame from the file
-            amountToRead = num_frames*8;
+            amountToRead = numFrames*8;
             ByteBuffer byteOffsets = ByteBuffer.allocate(amountToRead);
             byteOffsets.order(ByteOrder.LITTLE_ENDIAN);
             amountRead = channel.read(byteOffsets, offsetFrameOffsets);
@@ -93,26 +89,47 @@ public class CineFile extends VideoFile {
 
             // Store the image offsets as an array
             byteOffsets.rewind();
-            frameOffsets = byteOffsets.asLongBuffer().array();
+            frameOffsets = new long[numFrames];
+            for (int i = 0; i < frameOffsets.length; i++) {
+                frameOffsets[i] = byteOffsets.getLong();
+            }
         } catch (IOException e) {
             throw new VideoLoadException("Failed to read file");
         }
     }
 
     
-    public Image get_frame(int i) throws FrameLoadException {
+    public BufferedImage get_frame(int i) throws FrameLoadException {
         try {
             FileChannel channel = fileStream.getChannel();
             long offset = frameOffsets[i];
 
-            ByteBuffer imageBuffer = ByteBuffer.allocate(frame_size);
-            int amountRead = channel.read(imageBuffer, offset);
+            int amountToRead = 4;
+            ByteBuffer header = ByteBuffer.allocate(amountToRead);
+            header.order(ByteOrder.LITTLE_ENDIAN);
+            int amountRead = channel.read(header, offset);
 
-            if (amountRead < frame_size) {
+            if (amountRead < amountToRead) {
                 throw new FrameLoadException("Failed to load frame: "+i);
             }
 
-            return new Image(imageBuffer.array(), frame_px_width, frame_px_height, ChannelType.RGB);
+            int headerSize = header.getInt(0);
+
+            ByteBuffer byteImage = ByteBuffer.allocate(frameSize);
+            byteImage.order(ByteOrder.LITTLE_ENDIAN);
+            amountRead = channel.read(byteImage, offset+headerSize);
+
+            if (amountRead < frameSize) {
+                throw new FrameLoadException("Failed to load frame: "+i);
+            }
+
+            // Access the underlying array of the buffered image
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
+            final byte[] arr = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
+            // Copy contents into the underlying array
+            System.arraycopy(byteImage.array(), 0, arr, 0, frameSize);
+
+            return image;
         } catch(IOException e) {
             throw new FrameLoadException("Failed to load frame: "+i);
         }

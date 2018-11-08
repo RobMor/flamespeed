@@ -1,6 +1,6 @@
 package com.flamespeed.image;
 
-public class Image {
+public class ImageManager {
     private byte[] imageArray; /** The array containing the raw image data */
     private int width; /** Width in pixels of the image */
     private int height; /** Height in pixels of the image */
@@ -13,7 +13,7 @@ public class Image {
      * @param width The width in pixels of the image.
      * @param height The height in pixels of the image.
      */
-    public Image(byte[] imageArray, int width, int height) {
+    public ImageManager(byte[] imageArray, int width, int height) {
         this.imageArray = imageArray;
         this.width = width; // Width in pixels
         this.height = height;
@@ -29,18 +29,19 @@ public class Image {
      * @param height The height in pixels of the image.
      * @param channels The number of channels in the image.
      */
-    public Image(byte[] imageArray, int width, int height, ChannelType channels) {
-        this.imageArray = imageArray;
-        this.width = width; // Width in pixels
-        this.height = height;
-        switch (channels) {
-            case RGB:
-                this.channels = 3; break;
-            case GRAY:
-                this.channels = 1; break;
-        }
-    }
+    // public ImageManager(byte[] imageArray, int width, int height, ChannelType channels) {
+    //     this.imageArray = imageArray;
+    //     this.width = width; // Width in pixels
+    //     this.height = height;
+    //     switch (channels) {
+    //         case RGB:
+    //             this.channels = 3; break;
+    //         case GRAY:
+    //             this.channels = 1; break;
+    //     }
+    // }
 
+    // Implement support for setting pixels RGB values
     /**
      * Set the pixel to the given value. Only works for grayscale images. Sets
      * each channel of the pixel to the provided value.
@@ -64,6 +65,4 @@ public class Image {
             return false;
         }
     }
-
-    // TODO implement support for RGB images
 }

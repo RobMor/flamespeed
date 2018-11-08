@@ -1,23 +1,35 @@
 package com.flamespeed.video;
 
-import com.flamespeed.image.Image;
+import java.awt.image.BufferedImage;
+
 import com.flamespeed.video.CineFile;
 import com.flamespeed.video.VideoLoadException;
 
 public abstract class VideoFile {
     protected String fileName;
-    protected int num_frames; // Number of frames in the video
-    protected int frame_px_width; // Width in pixels
-    protected int frame_px_height; // Height in pixels
-    protected int frame_line_size; // TODO remove this
-    protected int frame_size; // Size of the frame in bytes
-    protected long frame_rate; // Frame rate of the video
-
-
+    protected int numFrames; // Number of frames in the video
+    protected int width; // Width in pixels
+    protected int height; // Height in pixels
 
     public static VideoFile loadVideo(String fileName) throws VideoLoadException {
         return new CineFile("testing.cine");
     }
 
-    public abstract Image get_frame(int i) throws FrameLoadException;
+    public String getFileName() {
+        return fileName;
+    }
+
+    public int getNumFrames() {
+        return numFrames;
+    }
+
+    public int getWidth() {
+        return width;
+    }
+
+    public int getHeight() {
+        return height;
+    }
+
+    public abstract BufferedImage get_frame(int i) throws FrameLoadException;
 }
