@@ -99,11 +99,14 @@ public class CineFile extends VideoFile {
     }
 
     
-    public BufferedImage get_frame(int i) throws FrameLoadException {
+    public BufferedImage getFrame(int i) throws FrameLoadException {
         try {
+            // Generate a file channel from the filestream
             FileChannel channel = fileStream.getChannel();
+            // Get the offset for frame i from the stored array
             long offset = frameOffsets[i];
 
+            // Read the 4 byte header size from the file
             int amountToRead = 4;
             ByteBuffer header = ByteBuffer.allocate(amountToRead);
             header.order(ByteOrder.LITTLE_ENDIAN);
@@ -113,8 +116,10 @@ public class CineFile extends VideoFile {
                 throw new FrameLoadException("Failed to load frame: "+i);
             }
 
+            // Read the size of the header
             int headerSize = header.getInt(0);
 
+            // Move past the header and read the image into a buffer
             ByteBuffer byteImage = ByteBuffer.allocate(frameSize);
             byteImage.order(ByteOrder.LITTLE_ENDIAN);
             amountRead = channel.read(byteImage, offset+headerSize);
@@ -126,6 +131,7 @@ public class CineFile extends VideoFile {
             // Access the underlying array of the buffered image
             BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
             final byte[] arr = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
+
             // Copy contents into the underlying array
             System.arraycopy(byteImage.array(), 0, arr, 0, frameSize);
 

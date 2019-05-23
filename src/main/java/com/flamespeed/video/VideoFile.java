@@ -12,7 +12,9 @@ public abstract class VideoFile {
     protected int height; // Height in pixels
 
     public static VideoFile loadVideo(String fileName) throws VideoLoadException {
-        return new CineFile("testing.cine");
+        // return new CineFile("testing.cine");
+        // return new OtherFile("testing.cine");
+        return null;
     }
 
     public String getFileName() {
@@ -31,5 +33,5 @@ public abstract class VideoFile {
         return height;
     }
 
-    public abstract BufferedImage get_frame(int i) throws FrameLoadException;
+    public abstract BufferedImage getFrame(int i) throws FrameLoadException;
 }
